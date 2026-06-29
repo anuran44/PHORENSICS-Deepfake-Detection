@@ -80,13 +80,13 @@ PHORENSICS outperforms probabilistic Vision Large Language Models (VLLMs) such a
 
 ### Installation
 1. Clone the repository:
-   `git clone https://github.com/your-username/deepscan-enterprise.git`
-   `cd deepscan-enterprise`
+   `git clone https://github.com/anuran44/PHORENSICS-Deepfake-Detection.git`
+   `Open the Repository`
 2. Install dependencies:
    `pip install -r requirements.txt`
 
 ### Execution
-Launch the DeepScan OS dashboard:
+Launch the Phorensics OS dashboard:
 `streamlit run app.py`
 
 ---
