@@ -1,0 +1,9 @@
+fpdf
+gputil
+matplotlib
+numpy
+opencv_python
+plotly
+psutil
+streamlit
+torch
