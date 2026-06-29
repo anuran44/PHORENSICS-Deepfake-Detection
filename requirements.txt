@@ -5,5 +5,6 @@ numpy
 opencv_python
 plotly
 psutil
+pyspark
 streamlit
 torch
