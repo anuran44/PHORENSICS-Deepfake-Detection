@@ -2,7 +2,6 @@ import os
 import glob
 import time
 import datetime
-import warnings
 import psutil
 import tkinter as tk
 from tkinter import filedialog
@@ -21,32 +20,18 @@ from ui.visualizations import (create_pure_heatmap, create_spectral_forensics_pl
                                create_speedometer, create_z_distribution_plot, create_rgb_matrix_plot)
 from utils.reporting import generate_pdf_report, HAS_FPDF
 
-try:
-    from pyspark.sql import SparkSession
-    HAS_SPARK = True
-except ImportError:
-    HAS_SPARK = False
-
-warnings.filterwarnings('ignore')
-
 def process_file_wrapper(fpath):
     engine = UnbiasedPhysicsForensics(fpath, force_cpu=True)
     if engine.valid: return engine.analyze()
     return None
 
-def check_5_vs(files):
-    size_mb = sum(os.path.getsize(f) for f in files) / (1024 * 1024)
-    formats = set(f.split('.')[-1].lower() for f in files)
-    return {"Volume": size_mb > 500 or len(files) > 100, "Velocity": False, "Variety": len(formats) > 1, "Veracity": True, "Value": len(files) > 0}, (size_mb > 500 or len(files) > 100)
-
-st.set_page_config(page_title="DeepScan Enterprise", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="PHORENSICS Enterprise", page_icon="🛡️", layout="wide")
 
 st.markdown("""
     <style>
     .metric-card {background: #f8f9fa; padding: 20px; border-radius: 8px; border-top: 4px solid #0f62fe; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; font-family: sans-serif;}
     .metric-card h4 { color: #555; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;}
     .metric-card h2 { color: #333; font-size: 2.2rem; margin: 10px 0 0 0;}
-    .worker-pending { background: #fafafa; padding: 15px; border-radius: 4px; border-left: 4px solid #9e9e9e; margin-bottom: 10px; font-family: monospace;}
     .worker-executing { background: #e3f2fd; padding: 15px; border-radius: 4px; border-left: 4px solid #0f62fe; margin-bottom: 10px; font-family: monospace; font-weight: bold;}
     .worker-completed { background: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #24a148; margin-bottom: 10px; font-family: monospace;}
     .diag-box { background: #f8f9fa; padding: 15px; border-radius: 4px; font-size: 0.95rem; border-left: 4px solid #0f62fe; margin-bottom: 15px; line-height: 1.5; color: #333;}
@@ -63,8 +48,8 @@ files = []
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2092/2092663.png", width=60)
-    st.markdown("### DeepScan OS")
-    st.caption("v4.2 Enterprise Industrial Edition")
+    st.markdown("### PHORENSICS OS")
+    st.caption("Native Architecture Edition")
     st.divider()
 
     st.markdown("#### 📊 System Telemetry")
@@ -89,7 +74,7 @@ with st.sidebar:
 
     st.divider()
     
-    mode = st.radio("Input Architecture", ["Single Image Pipeline", "Batch/Folder Distributed (PySpark)"])
+    mode = st.radio("Input Architecture", ["Single Image Pipeline", "Batch/Folder Processing (Local)"])
     
     st.write("Target Path:")
     col1, col2 = st.columns([3, 1])
@@ -129,93 +114,32 @@ if scan_triggered and target:
     if len(files) == 0:
         st.sidebar.error("SYSTEM ERROR: No valid image assets detected in path.")
     else:
-        use_spark = False
-        
-        if mode == "Batch/Folder Distributed (PySpark)":
-            st.sidebar.markdown("#### 🗄️ Big Data Analysis")
-            v_res, is_big_data = check_5_vs(files)
-            for k, v in v_res.items(): st.sidebar.markdown(f"{'✅' if v else '❌'} **{k}**")
-            use_spark = is_big_data and HAS_SPARK
-            st.sidebar.info("PySpark Clusters Engaged." if use_spark else "Standard processing active.")
-
         bar = st.sidebar.progress(0)
         status = st.sidebar.empty()
         eta = st.sidebar.empty()
         start_time = time.time()
         
-        st.title("⚙️ CLUSTER EXECUTION IN PROGRESS")
+        st.title("⚙️ LOCAL EXECUTION IN PROGRESS")
         st.divider()
-
-        if use_spark:
-            st.subheader("🖥️ Distributed Worker Node Telemetry")
+        st.subheader("🖥️ Hardware Node Telemetry")
+        proc_slot = st.empty()
+        
+        for i, fpath in enumerate(files):
+            proc_slot.markdown(f"<div class='worker-executing'><b>CORE ENGINE</b><br><span style='color:#0f62fe'>SCANNING: {os.path.basename(fpath)}</span></div>", unsafe_allow_html=True)
+            status.text(f"Scanning: {os.path.basename(fpath)}")
             
-            spark = SparkSession.builder \
-                .appName("Forensics") \
-                .master("local[4]") \
-                .config("spark.driver.memory", "8g") \
-                .config("spark.executor.memory", "4g") \
-                .config("spark.driver.maxResultSize", "4g") \
-                .config("spark.scheduler.mode", "FAIR") \
-                .getOrCreate()
-            spark.sparkContext.setLogLevel("ERROR")
+            engine = UnbiasedPhysicsForensics(fpath)
+            if engine.valid: st.session_state['results'].append(engine.analyze())
             
-            num_nodes = min(4, max(1, len(files) // 5))
-            batches = [list(x) for x in np.array_split(files, num_nodes) if len(x) > 0]
+            progress = (i + 1) / len(files)
+            bar.progress(progress)
             
-            cols = st.columns(4)
-            task_slots = []
-            
-            for i in range(len(batches)):
-                slot = cols[i % 4].empty()
-                task_slots.append(slot)
-                
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            for i, batch in enumerate(batches):
-                task_slots[i].markdown(f"<div class='worker-executing'><b>WORKER NODE 0{i+1}</b><br><span style='color:#0f62fe'>STATUS: EXECUTING ⚡ [{len(batch)} TENSORS]</span></div>", unsafe_allow_html=True)
-            
-            completed_files = 0
-            
-            for i, batch in enumerate(batches):
-                res = spark.sparkContext.parallelize(batch).map(process_file_wrapper).collect()
-                st.session_state['results'].extend([r for r in res if r])
-                completed_files += len(batch)
-                
-                task_slots[i].markdown(f"<div class='worker-completed'><b>WORKER NODE 0{i+1}</b><br><span style='color:#24a148'>STATUS: COMPLETED ✅</span></div>", unsafe_allow_html=True)
-                
-                progress = min(completed_files / len(files), 1.0)
-                bar.progress(progress)
-                status.text(f"Processed {completed_files} / {len(files)} files.")
-                
-                elapsed = time.time() - start_time
-                if progress > 0 and progress < 1.0:
-                    eta_str = str(datetime.timedelta(seconds=int((elapsed / progress) - elapsed)))
-                    eta.markdown(f"<span style='color:#fa4d56; font-weight:bold; font-family: monospace;'>ETA: {eta_str}</span>", unsafe_allow_html=True)
-                elif progress >= 1.0:
-                    eta.empty()
-
-            spark.stop()
-            
-        else:
-            st.subheader("🖥️ Hardware Node Telemetry")
-            proc_slot = st.empty()
-            
-            for i, fpath in enumerate(files):
-                proc_slot.markdown(f"<div class='worker-executing'><b>CORE ENGINE</b><br><span style='color:#0f62fe'>SCANNING: {os.path.basename(fpath)}</span></div>", unsafe_allow_html=True)
-                status.text(f"Scanning: {os.path.basename(fpath)}")
-                
-                engine = UnbiasedPhysicsForensics(fpath)
-                if engine.valid: st.session_state['results'].append(engine.analyze())
-                
-                progress = (i + 1) / len(files)
-                bar.progress(progress)
-                
-                elapsed = time.time() - start_time
-                if progress > 0:
-                    eta_str = str(datetime.timedelta(seconds=int((elapsed / progress) - elapsed)))
-                    eta.markdown(f"<span style='color:#fa4d56; font-weight:bold; font-family: monospace;'>ETA: {eta_str}</span>", unsafe_allow_html=True)
-            
-            proc_slot.markdown(f"<div class='worker-completed'><b>CORE ENGINE</b><br><span style='color:#24a148'>STATUS: COMPLETED ✅</span></div>", unsafe_allow_html=True)
+            elapsed = time.time() - start_time
+            if progress > 0:
+                eta_str = str(datetime.timedelta(seconds=int((elapsed / progress) - elapsed)))
+                eta.markdown(f"<span style='color:#fa4d56; font-weight:bold; font-family: monospace;'>ETA: {eta_str}</span>", unsafe_allow_html=True)
+        
+        proc_slot.markdown(f"<div class='worker-completed'><b>CORE ENGINE</b><br><span style='color:#24a148'>STATUS: COMPLETED ✅</span></div>", unsafe_allow_html=True)
                 
         status.text("Operation Concluded.")
         
@@ -335,6 +259,7 @@ if st.session_state['results'] and not scan_triggered:
         with c2: 
             st.plotly_chart(create_z_distribution_plot(data['Z_Arrays']['Chroma'], "#0f62fe"), use_container_width=True)
         
+            
         if data['RGB_Violation']:
             st.error(f"🔴 **Live Diagnostic:** Chroma scored {data['Max_Z']['Chroma']:.2f} Z. The intense color anomaly forced a mathematical detachment in the RGB Matrix. Real light physically cannot separate its color channels this sharply.")
         else:
