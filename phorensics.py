@@ -7,8 +7,6 @@ import tempfile
 import numpy as np
 import warnings
 import psutil
-import tkinter as tk
-from tkinter import filedialog
 import streamlit as st
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
@@ -523,10 +521,9 @@ st.markdown("""
 
 if 'results' not in st.session_state: st.session_state['results'] = []
 if 'selected_image' not in st.session_state: st.session_state['selected_image'] = None
-if 'target_path' not in st.session_state: st.session_state['target_path'] = ""
+if 'target_files' not in st.session_state: st.session_state['target_files'] = []
 
 scan_triggered = False
-files = []
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2092/2092663.png", width=60)
@@ -558,43 +555,38 @@ with st.sidebar:
     
     mode = st.radio("Input Architecture", ["Single Image Pipeline", "Batch/Folder Distributed (PySpark)"])
     
-    st.write("Target Path:")
-    col1, col2 = st.columns([3, 1])
-    target = col1.text_input("Path", value=st.session_state['target_path'], label_visibility="collapsed")
-    
-    if mode == "Single Image Pipeline":
-        if col2.button("📁 Browse"):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            path = filedialog.askopenfilename(master=root, filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.webp")])
-            root.destroy()
-            if path:
-                st.session_state['target_path'] = path
-                st.rerun()
-    else:
-        if col2.button("📁 Browse"):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            path = filedialog.askdirectory(master=root)
-            root.destroy()
-            if path:
-                st.session_state['target_path'] = path
-                st.rerun()
-                
     st.divider()
-    if st.button("🚀 INITIATE SCAN SEQUENCE", type="primary", use_container_width=True) and target:
+
+    uploaded_files = []
+    if mode == "Single Image Pipeline":
+        uf = st.file_uploader("Upload Target Asset", type=["png", "jpg", "jpeg", "webp", "tif", "tiff"], accept_multiple_files=False)
+        if uf:
+            uploaded_files = [uf]
+    else:
+        uploaded_files = st.file_uploader("Upload Asset Batch", type=["png", "jpg", "jpeg", "webp", "tif", "tiff"], accept_multiple_files=True)
+
+    st.divider()
+    if st.button("🚀 INITIATE SCAN SEQUENCE", type="primary", use_container_width=True) and uploaded_files:
         scan_triggered = True
         st.session_state['results'] = []
         st.session_state['selected_image'] = None
+        
+        # Bridge web uploads to local OpenCV engine via temporary directory
+        temp_dir = tempfile.mkdtemp()
+        file_paths = []
+        for uf in uploaded_files:
+            file_path = os.path.join(temp_dir, uf.name)
+            with open(file_path, "wb") as f:
+                f.write(uf.getbuffer())
+            file_paths.append(file_path)
+            
+        st.session_state['target_files'] = file_paths
 
-if scan_triggered and target:
-    clean_path = target.strip().strip('"').strip("'")
-    files = [clean_path] if mode == "Single Image Pipeline" and os.path.isfile(clean_path) else [f for f in glob.glob(os.path.join(clean_path, '*.*')) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'))]
+if scan_triggered and st.session_state.get('target_files'):
+    files = st.session_state['target_files']
 
     if len(files) == 0:
-        st.sidebar.error("SYSTEM ERROR: No valid image assets detected in path.")
+        st.sidebar.error("SYSTEM ERROR: No valid image assets detected.")
     else:
         use_spark = False
         

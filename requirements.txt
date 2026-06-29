@@ -2,7 +2,7 @@ fpdf
 gputil
 matplotlib
 numpy
-opencv_python
+opencv-python-headless
 plotly
 psutil
 pyspark
