@@ -8,12 +8,8 @@ from tkinter import filedialog
 import numpy as np
 import streamlit as st
 
-# Environment & Internal Modules
 from utils.config import setup_environment
 setup_environment()
-
-from core.hardware import HAS_GPUTIL
-if HAS_GPUTIL: import GPUtil
 
 from core.forensics import UnbiasedPhysicsForensics
 from ui.visualizations import (create_pure_heatmap, create_spectral_forensics_plot, 
@@ -21,7 +17,7 @@ from ui.visualizations import (create_pure_heatmap, create_spectral_forensics_pl
 from utils.reporting import generate_pdf_report, HAS_FPDF
 
 def process_file_wrapper(fpath):
-    engine = UnbiasedPhysicsForensics(fpath, force_cpu=True)
+    engine = UnbiasedPhysicsForensics(fpath)
     if engine.valid: return engine.analyze()
     return None
 
@@ -49,7 +45,7 @@ files = []
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2092/2092663.png", width=60)
     st.markdown("### PHORENSICS OS")
-    st.caption("Native Architecture Edition")
+    st.caption("Native CPU Architecture Edition")
     st.divider()
 
     st.markdown("#### 📊 System Telemetry")
@@ -57,20 +53,6 @@ with st.sidebar:
     ram_usage = psutil.virtual_memory().percent
     st.progress(cpu_usage / 100.0, text=f"CPU Load: {cpu_usage}%")
     st.progress(ram_usage / 100.0, text=f"RAM Usage: {ram_usage}%")
-    
-    if HAS_GPUTIL:
-        try:
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                gpu = gpus[0]
-                vram_usage = gpu.memoryUtil * 100
-                st.progress(vram_usage / 100.0, text=f"GPU VRAM: {vram_usage:.1f}% ({gpu.memoryUsed}MB / {gpu.memoryTotal}MB)")
-            else:
-                st.info("No GPU detected by GPUtil.")
-        except Exception:
-            st.warning("GPUtil failed to read metrics.")
-    else:
-        st.warning("GPUtil not installed. GPU tracking offline.")
 
     st.divider()
     
@@ -121,7 +103,7 @@ if scan_triggered and target:
         
         st.title("⚙️ LOCAL EXECUTION IN PROGRESS")
         st.divider()
-        st.subheader("🖥️ Hardware Node Telemetry")
+        st.subheader("🖥️ CPU Core Telemetry")
         proc_slot = st.empty()
         
         for i, fpath in enumerate(files):
@@ -182,9 +164,6 @@ if st.session_state['results'] and not scan_triggered:
                 st.error(f"⚠️ HIGH SEVERITY ALERT ({data['Fake_Prob']:.1f}% Match) - Generative AI Origin Detected. The structural light physics (FFT) violently breach natural camera lens decay curves.")
         else: 
             st.success(f"✅ CLEARANCE GRANTED ({data['Fake_Prob']:.1f}% Match) - Asset conforms to natural physical constraints. Robust statistics verified no structural manipulation.")
-            
-        if 'VRAM_Swaps' in data and data['VRAM_Swaps'] > 0:
-            st.warning(f"⚙️ Hardware Alert: System automatically hot-swapped to CPU {data['VRAM_Swaps']} time(s) to prevent CUDA Out-Of-Memory crashing during execution.")
             
         cTitle, cBtn = st.columns([4, 1])
         if HAS_FPDF:

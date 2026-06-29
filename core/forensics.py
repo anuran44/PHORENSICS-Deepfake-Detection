@@ -3,15 +3,13 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from core.hardware import DynamicVRAMTracker
 
 class UnbiasedPhysicsForensics:
-    def __init__(self, image_path, max_dim=600, patch_size=128, stride=64, force_cpu=False):
+    def __init__(self, image_path, max_dim=600, patch_size=128, stride=64):
         self.image_path = image_path
         self.filename = os.path.basename(image_path)
         self.patch_size = patch_size
         self.stride = stride
-        self.vram_tracker = DynamicVRAMTracker(force_cpu=force_cpu)
         
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         self.valid = False
@@ -128,32 +126,32 @@ class UnbiasedPhysicsForensics:
             m = torch.median(pts)
             return 0.6745 * torch.abs(pts - m) / (torch.median(torch.abs(pts - m)) + 1e-3)
 
-        def compute_ela(device):
+        def compute_ela():
             _, enc = cv2.imencode('.jpg', self.img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
-            diff = torch.abs(torch.from_numpy(self.img_bgr).to(device).float() - 
-                             torch.from_numpy(cv2.imdecode(enc, cv2.IMREAD_COLOR)).to(device).float()).mean(dim=2)
+            diff = torch.abs(torch.from_numpy(self.img_bgr).float() - 
+                             torch.from_numpy(cv2.imdecode(enc, cv2.IMREAD_COLOR)).float()).mean(dim=2)
             p_ela, n_h, n_w = self._extract_patches(diff.unsqueeze(0)) 
-            return robust_z(torch.var(p_ela.view(p_ela.shape[0], -1), dim=1)).to('cpu'), n_h, n_w
+            return robust_z(torch.var(p_ela.view(p_ela.shape[0], -1), dim=1)), n_h, n_w
 
-        def compute_noise(device):
+        def compute_noise():
             gray = cv2.cvtColor(self.img_bgr, cv2.COLOR_BGR2GRAY)
-            t_gray = torch.from_numpy(gray).to(device).float().unsqueeze(0).unsqueeze(0)
-            kernel = torch.tensor([[[[0., 1., 0.], [1., -4., 1.], [0., 1., 0.]]]]).to(device)
+            t_gray = torch.from_numpy(gray).float().unsqueeze(0).unsqueeze(0)
+            kernel = torch.tensor([[[[0., 1., 0.], [1., -4., 1.], [0., 1., 0.]]]])
             noise_map = F.conv2d(t_gray, kernel, padding=1).squeeze(0)
             p_noise, _, _ = self._extract_patches(noise_map)
-            return robust_z(torch.var(p_noise.view(p_noise.shape[0], -1), dim=1)).to('cpu')
+            return robust_z(torch.var(p_noise.view(p_noise.shape[0], -1), dim=1))
 
-        def compute_chroma(device):
+        def compute_chroma():
             ycc = cv2.cvtColor(self.img_bgr, cv2.COLOR_BGR2YCrCb)
-            t_ycc = torch.from_numpy(ycc).to(device).float().permute(2, 0, 1)
+            t_ycc = torch.from_numpy(ycc).float().permute(2, 0, 1)
             p_chroma, _, _ = self._extract_patches(t_ycc)
             y_var = torch.var(p_chroma[:, 0, :, :].reshape(p_chroma.shape[0], -1), dim=1) + 1e-5
             return robust_z((torch.var(p_chroma[:, 1, :, :].reshape(p_chroma.shape[0], -1), dim=1) + 
-                             torch.var(p_chroma[:, 2, :, :].reshape(p_chroma.shape[0], -1), dim=1)) / y_var).to('cpu')
+                             torch.var(p_chroma[:, 2, :, :].reshape(p_chroma.shape[0], -1), dim=1)) / y_var)
 
-        z_ela, n_h, n_w = self.vram_tracker.execute(compute_ela)
-        z_noise = self.vram_tracker.execute(compute_noise)
-        z_chroma = self.vram_tracker.execute(compute_chroma)
+        z_ela, n_h, n_w = compute_ela()
+        z_noise = compute_noise()
+        z_chroma = compute_chroma()
 
         def get_robust_max(tensor, percentile=0.98):
             return torch.quantile(tensor.float(), percentile).item()
@@ -205,6 +203,5 @@ class UnbiasedPhysicsForensics:
             "Alpha_Val": alpha_val,
             "R_Vals": r_vals, "P_Vals": p_vals, "Intercept": intercept,
             "Z_Grid": z_grid,
-            "Image": self.img_rgb,
-            "VRAM_Swaps": self.vram_tracker.swap_count
+            "Image": self.img_rgb
         }
