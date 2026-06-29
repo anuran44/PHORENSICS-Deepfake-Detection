@@ -1,13 +1,12 @@
 import os
-import glob
 import time
 import datetime
 import psutil
-import tkinter as tk
-from tkinter import filedialog
+import tempfile
 import numpy as np
 import streamlit as st
 
+# Environment & Internal Modules
 from utils.config import setup_environment
 setup_environment()
 
@@ -15,11 +14,6 @@ from core.forensics import UnbiasedPhysicsForensics
 from ui.visualizations import (create_pure_heatmap, create_spectral_forensics_plot, 
                                create_speedometer, create_z_distribution_plot, create_rgb_matrix_plot)
 from utils.reporting import generate_pdf_report, HAS_FPDF
-
-def process_file_wrapper(fpath):
-    engine = UnbiasedPhysicsForensics(fpath)
-    if engine.valid: return engine.analyze()
-    return None
 
 st.set_page_config(page_title="PHORENSICS Enterprise", page_icon="🛡️", layout="wide")
 
@@ -37,99 +31,85 @@ st.markdown("""
 
 if 'results' not in st.session_state: st.session_state['results'] = []
 if 'selected_image' not in st.session_state: st.session_state['selected_image'] = None
-if 'target_path' not in st.session_state: st.session_state['target_path'] = ""
 
 scan_triggered = False
-files = []
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2092/2092663.png", width=60)
     st.markdown("### PHORENSICS OS")
-    st.caption("Native CPU Architecture Edition")
+    st.caption("Cloud Architecture Edition")
     st.divider()
 
-    st.markdown("#### 📊 System Telemetry")
+    st.markdown("#### 📊 Cloud Node Telemetry")
     cpu_usage = psutil.cpu_percent(interval=0.1)
     ram_usage = psutil.virtual_memory().percent
-    st.progress(cpu_usage / 100.0, text=f"CPU Load: {cpu_usage}%")
-    st.progress(ram_usage / 100.0, text=f"RAM Usage: {ram_usage}%")
+    st.progress(cpu_usage / 100.0, text=f"Server CPU Load: {cpu_usage}%")
+    st.progress(ram_usage / 100.0, text=f"Server RAM Usage: {ram_usage}%")
 
     st.divider()
     
-    mode = st.radio("Input Architecture", ["Single Image Pipeline", "Batch/Folder Processing (Local)"])
-    
-    st.write("Target Path:")
-    col1, col2 = st.columns([3, 1])
-    target = col1.text_input("Path", value=st.session_state['target_path'], label_visibility="collapsed")
-    
-    if mode == "Single Image Pipeline":
-        if col2.button("📁 Browse"):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            path = filedialog.askopenfilename(master=root, filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.webp")])
-            root.destroy()
-            if path:
-                st.session_state['target_path'] = path
-                st.rerun()
-    else:
-        if col2.button("📁 Browse"):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            path = filedialog.askdirectory(master=root)
-            root.destroy()
-            if path:
-                st.session_state['target_path'] = path
-                st.rerun()
+    st.markdown("#### 📁 Asset Ingestion")
+    # Native Streamlit Multi-File Uploader replaces Tkinter
+    uploaded_files = st.file_uploader(
+        "Select Assets for Audit", 
+        type=['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'], 
+        accept_multiple_files=True
+    )
                 
     st.divider()
-    if st.button("🚀 INITIATE SCAN SEQUENCE", type="primary", use_container_width=True) and target:
+    if st.button("🚀 INITIATE SCAN SEQUENCE", type="primary", use_container_width=True) and uploaded_files:
         scan_triggered = True
         st.session_state['results'] = []
         st.session_state['selected_image'] = None
 
-if scan_triggered and target:
-    clean_path = target.strip().strip('"').strip("'")
-    files = [clean_path] if mode == "Single Image Pipeline" and os.path.isfile(clean_path) else [f for f in glob.glob(os.path.join(clean_path, '*.*')) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'))]
-
-    if len(files) == 0:
-        st.sidebar.error("SYSTEM ERROR: No valid image assets detected in path.")
-    else:
-        bar = st.sidebar.progress(0)
-        status = st.sidebar.empty()
-        eta = st.sidebar.empty()
-        start_time = time.time()
+if scan_triggered and uploaded_files:
+    bar = st.sidebar.progress(0)
+    status = st.sidebar.empty()
+    eta = st.sidebar.empty()
+    start_time = time.time()
+    
+    st.title("⚙️ CLOUD EXECUTION IN PROGRESS")
+    st.divider()
+    st.subheader("🖥️ Compute Node Telemetry")
+    proc_slot = st.empty()
+    
+    for i, file_obj in enumerate(uploaded_files):
+        proc_slot.markdown(f"<div class='worker-executing'><b>CORE ENGINE</b><br><span style='color:#0f62fe'>SCANNING: {file_obj.name}</span></div>", unsafe_allow_html=True)
+        status.text(f"Scanning: {file_obj.name}")
         
-        st.title("⚙️ LOCAL EXECUTION IN PROGRESS")
-        st.divider()
-        st.subheader("🖥️ CPU Core Telemetry")
-        proc_slot = st.empty()
+        # Save uploaded byte stream to a temporary file on the Linux server
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            tmp.write(file_obj.getvalue())
+            tmp_path = tmp.name
         
-        for i, fpath in enumerate(files):
-            proc_slot.markdown(f"<div class='worker-executing'><b>CORE ENGINE</b><br><span style='color:#0f62fe'>SCANNING: {os.path.basename(fpath)}</span></div>", unsafe_allow_html=True)
-            status.text(f"Scanning: {os.path.basename(fpath)}")
+        # Process the temporary file
+        engine = UnbiasedPhysicsForensics(tmp_path)
+        if engine.valid: 
+            result = engine.analyze()
+            # Override the random temp filename with the original user filename
+            result['Filename'] = file_obj.name 
+            st.session_state['results'].append(result)
             
-            engine = UnbiasedPhysicsForensics(fpath)
-            if engine.valid: st.session_state['results'].append(engine.analyze())
-            
-            progress = (i + 1) / len(files)
-            bar.progress(progress)
-            
-            elapsed = time.time() - start_time
-            if progress > 0:
-                eta_str = str(datetime.timedelta(seconds=int((elapsed / progress) - elapsed)))
-                eta.markdown(f"<span style='color:#fa4d56; font-weight:bold; font-family: monospace;'>ETA: {eta_str}</span>", unsafe_allow_html=True)
+        # Clean up the server's hard drive
+        os.remove(tmp_path)
         
-        proc_slot.markdown(f"<div class='worker-completed'><b>CORE ENGINE</b><br><span style='color:#24a148'>STATUS: COMPLETED ✅</span></div>", unsafe_allow_html=True)
-                
-        status.text("Operation Concluded.")
+        progress = (i + 1) / len(uploaded_files)
+        bar.progress(progress)
         
-        if len(st.session_state['results']) == 1:
-            st.session_state['selected_image'] = 0
+        elapsed = time.time() - start_time
+        if progress > 0:
+            eta_str = str(datetime.timedelta(seconds=int((elapsed / progress) - elapsed)))
+            eta.markdown(f"<span style='color:#fa4d56; font-weight:bold; font-family: monospace;'>ETA: {eta_str}</span>", unsafe_allow_html=True)
+    
+    proc_slot.markdown(f"<div class='worker-completed'><b>CORE ENGINE</b><br><span style='color:#24a148'>STATUS: COMPLETED ✅</span></div>", unsafe_allow_html=True)
             
-        time.sleep(1) 
-        st.rerun() 
+    status.text("Operation Concluded.")
+    
+    if len(st.session_state['results']) == 1:
+        st.session_state['selected_image'] = 0
+        
+    time.sleep(1) 
+    st.rerun() 
 
 if st.session_state['results'] and not scan_triggered:
     if st.button("← RETURN TO GLOBAL AUDIT"): 
