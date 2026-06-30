@@ -40,66 +40,60 @@ To ensure maximum performance and avoid execution bottlenecks, your deployment e
 
 ## 🛠️ Installation Guide
 
-Follow these steps to deploy the engine in an isolated, secure environment.
+**Method 1: Python Library (Recommended)**
+The project is available as a Python library named `phorensics`.
 
-**1. Clone the Repository**
-Pull the latest production build from version control:
-```bash
-git clone [https://github.com/yourusername/DeepScan-Enterprise.git](https://github.com/yourusername/DeepScan-Enterprise.git)
-cd DeepScan-Enterprise
+    pip install phorensics
 
-**2. Initialize a Virtual Environment**
-It is strictly advised to isolate the dependencies to prevent conflicts with global Python packages:
+**Method 2: Source Code**
+For the full Streamlit dashboard, clone the repository and isolate the environment:
 
-Bash
-python -m venv venv
+    git clone https://github.com/yourusername/DeepScan-Enterprise.git
+    cd DeepScan-Enterprise
+    python -m venv venv
+    
+    # On Windows:
+    venv\Scripts\activate
+    # On macOS/Linux:
+    source venv/bin/activate
+    
+    pip install -r requirements.txt
 
-# On Windows:
-venv\Scripts\activate
+---
 
-# On macOS/Linux:
-source venv/bin/activate
-3. Install Dependencies
-Install the precise package versions required by the forensic pipeline:
+## 💻 Usage & Execution
 
-Bash
-pip install -r requirements.txt
-💻 Usage & Execution
-The core engine is optimized into a single, self-contained Streamlit pipeline.
+**Option A: CLI Library Usage**
+After installing via pip, you can scan images directly from the terminal:
 
-Launch the Application Dashboard:
+    python -m phorensics "path-to-image"
 
-Bash
-streamlit run phorensics.py
+**Option B: Streamlit Dashboard**
+Launch the Application Dashboard from the cloned repository:
+
+    streamlit run phorensics.py
+    
 Upon launching, the web interface will provide two execution architectures:
 
-Single Image Pipeline: Upload a single .png, .jpg, .jpeg, .webp, .tif, or .tiff asset. The engine will instantly execute the full suite of spatial and spectral diagnostics, rendering the telemetry and allowing for immediate PDF report generation.
+* **Single Image Pipeline:** Upload a single .png, .jpg, .jpeg, .webp, .tif, or .tiff asset. The engine will instantly execute the full suite of spatial and spectral diagnostics, rendering the telemetry and allowing for immediate PDF report generation.
+* **Batch/Folder Distributed (PySpark):** Upload multiple assets (dozens or hundreds) simultaneously. This triggers the Spark cluster. The UI will render real-time telemetry, allocating batches to worker nodes, tracking ETA, and providing a final Global Security Audit of all processed files.
 
-Batch/Folder Distributed (PySpark): Upload multiple assets (dozens or hundreds) simultaneously. This triggers the Spark cluster. The UI will render real-time telemetry, allocating batches to worker nodes, tracking ETA, and providing a final Global Security Audit of all processed files.
+---
 
-THE PROJECT IS ALSO AVAILABLE AS A PYTHON LIBRARY NAMED "phorensics" :-
+## 📊 Understanding the Telemetry
 
-TO USE :-
--------> pip install phorensics
-After installation ( Usage )
-python -m phorensics "path-to-image"
-
-📊 Understanding the Telemetry
 The dashboard outputs complex mathematical variables that define the ultimate Kinematic Verdict. Here is how to interpret the core metrics:
 
-Robust Z-Scores (Threshold = 3.5): The engine enforces a 2.5 Z-score safe-baseline to prevent standard ISO sensor noise from triggering false positives. A Z-score crossing the 3.5 threat line indicates violent failure of standard physical constraints (e.g., missing sensor dust or highly abnormal compression clusters).
+* **Robust Z-Scores (Threshold = 3.5):** The engine enforces a 2.5 Z-score safe-baseline to prevent standard ISO sensor noise from triggering false positives. A Z-score crossing the 3.5 threat line indicates violent failure of standard physical constraints (e.g., missing sensor dust or highly abnormal compression clusters).
+* **Alpha Value (α) & Spectral Decay:** Modern smartphone Image Signal Processors (ISPs) apply artificial sharpening. DeepScan applies an Optical Calibration Coefficient (0.70) to raw signals to normalize these real-time images against theoretical physics bounds.
+  * **Safe Zone:** α < 2.0 (Natural noise) or α > 3.5 (Heavy natural blur).
+  * **Threat Zone:** 2.0 ≤ α ≤ 3.5. If the calibrated signal is trapped here, it is definitively classified as a Deepfake/AI Generation.
+* **RGB Matrix Violation:** Real light bleeds across channels. If the internal cross-correlation drops below 0.25 naturally, or if a severe Chroma anomaly forces the matrix to mathematically detach, the system flags a severe RGB violation.
 
-Alpha Value (α) & Spectral Decay: Modern smartphone Image Signal Processors (ISPs) apply artificial sharpening. DeepScan applies an Optical Calibration Coefficient (0.70) to raw signals to normalize these real-time images against theoretical physics bounds.
+---
 
-Safe Zone: α < 2.0 (Natural noise) or α > 3.5 (Heavy natural blur).
+## ⚠️ Troubleshooting & Hardware Notes
 
-Threat Zone: 2.0 ≤ α ≤ 3.5. If the calibrated signal is trapped here, it is definitively classified as a Deepfake/AI Generation.
-
-RGB Matrix Violation: Real light bleeds across channels. If the internal cross-correlation drops below 0.25 naturally, or if a severe Chroma anomaly forces the matrix to mathematically detach, the system flags a severe RGB violation.
-
-⚠️ Troubleshooting & Hardware Notes
-PySpark Startup Errors (Java Issues): If the application crashes immediately upon selecting the Batch upload mode, it is almost certainly a Java configuration issue. Ensure your JAVA_HOME environment variable is correctly set and pointing to a valid JDK/JRE installation.
-
-CUDA Out of Memory (OOM): If you are processing massive 4K or .tiff files on a GPU with limited VRAM (e.g., < 4GB), the engine will attempt to catch the OOM error and hot-swap to the CPU. You will see a VRAM_Swaps warning in the UI if this occurs. Processing will be slower, but it will not crash.
-
-Dependency Graceful Degradation: The engine utilizes dynamic, fail-safe imports. If non-critical libraries like GPUtil (GPU tracking) or fpdf2 (PDF generation) fail to install or load on your specific OS, the system will not crash. It will simply disable those specific UI elements and continue to perform its core forensic duties.
+* **PySpark Startup Errors (Java Issues):** If the application crashes immediately upon selecting the Batch upload mode, it is almost certainly a Java configuration issue. Ensure your `JAVA_HOME` environment variable is correctly set and pointing to a valid JDK/JRE installation.
+* **CUDA Out of Memory (OOM):** If you are processing massive 4K or .tiff files on a GPU with limited VRAM (e.g., < 4GB), the engine will attempt to catch the OOM error and hot-swap to the CPU. You will see a VRAM_Swaps warning in the UI if this occurs. Processing will be slower, but it will not crash.
+* **Dependency Graceful Degradation:** The engine utilizes dynamic, fail-safe imports. If non-critical libraries like `GPUtil` (GPU tracking) or `fpdf2` (PDF generation) fail to install or load on your specific OS, the system will not crash. It will simply disable those specific UI elements and continue to perform its core forensic duties.
