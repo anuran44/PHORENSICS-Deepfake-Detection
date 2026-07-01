@@ -31,10 +31,9 @@ The DeepScan Engine is built on a modular architecture designed to interrogate t
 
 To ensure maximum performance and avoid execution bottlenecks, your deployment environment must meet the following baseline requirements:
 
-* **Python Version:** 3.9, 3.10, or 3.11 (Highly recommended for optimal PyTorch and PySpark stability).
+* **Python Version:** 3.10+ (Highly recommended for optimal PyTorch and PySpark stability).
 * **Java Runtime Environment (JRE):** Java 8, 11, or 17+. This is **strictly required** for the PySpark distributed backend to function. *Note: The engine includes explicit JVM compatibility flags (`--add-opens`) to manage module accessibility for Java 17+ automatically.*
-* **Hardware:** * *Minimum:* 8GB RAM, modern multi-core CPU.
-  * *Recommended:* 16GB+ RAM, NVIDIA GPU with CUDA Toolkit installed (for accelerated PyTorch tensor calculations).
+* **Hardware:** * NVIDIA GPU with CUDA Toolkit installed (for accelerated PyTorch tensor calculations).
 
 ---
 
